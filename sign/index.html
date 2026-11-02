@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' https://tajkcrgxwevbjfrhupal.supabase.co; base-uri 'none'; form-action 'none'">
+<title>서결 전자서명</title>
+<link rel="icon" type="image/png" href="icon-64.png">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="stylesheet" href="style.css">
+<script type="module" src="app.js"></script>
+</head>
+<body>
+<header id="top" hidden>
+  <img class="brand-mark" src="icon-64.png" alt="">
+  <div class="head-text">
+    <div class="doc-title" id="title"></div>
+    <div class="doc-from" id="from"></div>
+  </div>
+</header>
+
+<main id="pages"></main>
+
+<section id="notice" class="notice" role="status"><div class="spinner"></div><p>문서를 여는 중이에요</p></section>
+
+<footer id="bar" hidden>
+  <div class="bar-row"><span id="who"></span><span id="progress"></span></div>
+  <div id="consent-row" hidden>
+    <label class="consent"><input type="checkbox" id="consent"><span>문서를 읽었고, 전자적으로 서명하는 데 동의합니다. 서명 시각과 IP·브라우저 정보가 기록에 남습니다.</span></label>
+  </div>
+  <div class="bar-actions">
+    <button id="decline" class="ghost" type="button">거절</button>
+    <button id="next" class="primary" type="button">다음 칸으로</button>
+    <button id="finish" class="primary" type="button" hidden disabled>서명 완료</button>
+  </div>
+</footer>
+
+<dialog id="input">
+  <form method="dialog" id="input-form">
+    <h2 id="input-title"></h2>
+    <div id="input-body"></div>
+    <div class="dialog-actions">
+      <button type="button" id="input-cancel" class="ghost">취소</button>
+      <button type="button" id="input-clear" class="ghost" hidden>지우기</button>
+      <button type="button" id="input-ok" class="primary">넣기</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="decline-dialog">
+  <form method="dialog">
+    <h2>서명을 거절할까요?</h2>
+    <p class="hint">거절하면 이 문서의 서명 절차가 멈추고 보낸 사람에게 알려져요.</p>
+    <textarea id="decline-reason" rows="3" maxlength="500" placeholder="거절 이유(선택)"></textarea>
+    <div class="dialog-actions">
+      <button type="button" id="decline-cancel" class="ghost">돌아가기</button>
+      <button type="button" id="decline-ok" class="danger">거절하기</button>
+    </div>
+  </form>
+</dialog>
+</body>
+</html>
