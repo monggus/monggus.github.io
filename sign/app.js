@@ -74,21 +74,21 @@ async function api(body) {
 class Problem extends Error { constructor(code, left) { super(code); this.code = code; this.left = left; } }
 
 const MESSAGES = {
-  not_found: ["링크를 찾을 수 없어요", "링크가 잘렸거나 문서가 삭제됐을 수 있어요. 보낸 사람에게 다시 요청해 주세요."],
-  bad_link: ["링크가 올바르지 않아요", "메시지의 링크 전체가 복사됐는지 확인해 주세요."],
-  expired: ["서명 기한이 지났어요", "보낸 사람에게 다시 요청해 주세요."],
-  cancelled: ["보낸 사람이 취소한 문서예요", "더 이상 서명할 수 없어요."],
-  declined: ["서명이 중단된 문서예요", "서명자 중 한 명이 거절했어요."],
-  code_locked: ["코드를 여러 번 틀려 잠겼어요", "보낸 사람에게 잠금을 풀어 달라고 요청해 주세요."],
-  unsupported: ["이 브라우저로는 문서를 열 수 없어요", "기기의 운영체제나 브라우저를 최신으로 업데이트한 뒤 다시 열어 주세요."],
-  removed: ["서명 대상에서 빠졌어요", "보낸 사람이 서명자를 바꿨어요. 궁금한 점은 보낸 사람에게 물어봐 주세요."],
-  changed: ["문서 설정이 바뀌었어요", "보낸 사람이 서명 칸을 고쳤어요. 이 링크를 다시 열어 서명해 주세요."],
-  already_signed: ["이미 서명했어요", "같은 링크로 다시 서명할 수 없어요."],
-  completed: ["이미 완성된 문서예요", "서명을 더 받지 않아요."],
-  waiting: ["앞 순서 서명을 기다리고 있어요", "앞 서명자가 끝나면 이 링크로 서명할 수 있어요. 나중에 다시 열어 주세요."],
-  network: ["연결할 수 없어요", "인터넷 연결을 확인한 뒤 다시 열어 주세요. 서버가 잠시 멈춰 있을 수도 있어요."],
-  tampered: ["문서를 믿을 수 없어요", "내려받은 문서가 보낸 문서와 달라요. 서명하지 말고 보낸 사람에게 알려 주세요."],
-  server_error: ["잠시 문제가 생겼어요", "조금 뒤 다시 시도해 주세요."],
+  not_found: ["링크를 찾을 수 없습니다", "보낸 사람에게 다시 요청해 주십시오."],
+  bad_link: ["링크가 올바르지 않습니다", "링크 전체가 복사되었는지 확인해 주십시오."],
+  expired: ["서명 기한이 지났습니다", "보낸 사람에게 다시 요청해 주십시오."],
+  cancelled: ["보낸 사람이 취소한 문서입니다", "더 이상 서명할 수 없습니다."],
+  declined: ["서명이 중단된 문서입니다", "서명자 중 한 명이 거절했습니다."],
+  code_locked: ["코드 입력 오류로 잠겼습니다", "보낸 사람에게 잠금 해제를 요청해 주십시오."],
+  unsupported: ["이 브라우저에서는 열 수 없습니다", "운영체제나 브라우저를 업데이트한 뒤 다시 열어 주십시오."],
+  removed: ["서명 대상에서 제외되었습니다", "자세한 내용은 보낸 사람에게 문의해 주십시오."],
+  changed: ["문서 설정이 변경되었습니다", "이 링크를 다시 열어 서명해 주십시오."],
+  already_signed: ["이미 서명했습니다", "같은 링크로 다시 서명할 수 없습니다."],
+  completed: ["이미 완성된 문서입니다", "더 이상 서명을 받지 않습니다."],
+  waiting: ["앞 순서 서명을 기다리고 있습니다", "앞 서명자가 완료한 뒤 다시 열어 주십시오."],
+  network: ["연결할 수 없습니다", "인터넷 연결을 확인한 뒤 다시 열어 주십시오."],
+  tampered: ["문서를 신뢰할 수 없습니다", "보낸 문서와 다릅니다. 서명하지 말고 보낸 사람에게 알려 주십시오."],
+  server_error: ["일시적인 문제가 발생했습니다", "잠시 후 다시 시도해 주십시오."],
 };
 
 // 상태 표시용 선 아이콘. 이모지는 공적인 문서에 가벼워 보여 쓰지 않는다.
@@ -150,7 +150,7 @@ async function start() {
 
 /** 접근 코드 입력. 틀린 횟수는 서버가 센다. */
 function askCode(message) {
-  const box = notice("lock", "접근 코드를 입력해 주세요", message ?? "보낸 사람에게 따로 받은 6자리 코드예요.");
+  const box = notice("lock", "접근 코드를 입력해 주십시오", message ?? "보낸 사람에게 별도로 받은 6자리 코드입니다.");
   const input = document.createElement("input");
   input.type = "text"; input.inputMode = "numeric"; input.autocomplete = "off";
   input.className = "code-input"; input.setAttribute("aria-label", "접근 코드");
@@ -180,7 +180,7 @@ async function openEnvelope() {
     opened = await api({ action: "open" });
   } catch (e) {
     if (e instanceof Problem && e.code === "code_required") return askCode();
-    if (e instanceof Problem && e.code === "code_wrong") return askCode(`코드가 맞지 않아요. ${e.left}번 더 틀리면 잠겨요.`);
+    if (e instanceof Problem && e.code === "code_wrong") return askCode(`코드가 일치하지 않습니다. ${e.left}회 더 틀리면 잠깁니다.`);
     throw e;
   }
   try {
@@ -213,7 +213,7 @@ async function openEnvelope() {
 function showRoster(opened) {
   rosterMode = true;
   if (opened.final_url) return showSigned(null, opened.final_url, false, true);
-  const box = notice("list", manifest.title, `${manifest.from}님이 보낸 명단이에요. 내 이름을 골라 서명해 주세요.`);
+  const box = notice("list", manifest.title, `${manifest.from}님이 보낸 명단입니다. 이름을 선택해 서명해 주십시오.`);
   const status = new Map(opened.signers.map((s) => [s.id, s.status]));
   const list = document.createElement("div");
   list.className = "roster";
@@ -251,7 +251,7 @@ function showRoster(opened) {
   if (blank) {
     const b = document.createElement("button");
     b.type = "button"; b.className = "blank-row";
-    const name = document.createElement("span"); name.textContent = "명단에 이름이 없어요";
+    const name = document.createElement("span"); name.textContent = "명단에 이름이 없는 경우";
     const state = document.createElement("span"); state.className = "state"; state.textContent = "이름 쓰고 서명";
     b.append(name, state);
     b.addEventListener("click", () => pick(blank.id));
@@ -284,8 +284,8 @@ async function openDocument(url) {
   }));
 
   $("title").textContent = manifest.title;
-  $("from").textContent = `${manifest.from}님이 서명을 요청했어요`;
-  $("who").textContent = me?.blank ? "이름을 적어 주세요" : (me?.name ?? "");
+  $("from").textContent = `${manifest.from}님의 서명 요청`;
+  $("who").textContent = me?.blank ? "이름을 입력해 주십시오" : (me?.name ?? "");
   $("consent").checked = false;
   $("top").hidden = false;
   $("notice").hidden = true;
@@ -439,10 +439,10 @@ function textInput(f, body) {
 function padInput(f, body) {
   const pad = document.createElement("canvas");
   pad.className = "pad";
-  pad.setAttribute("aria-label", "여기에 서명을 그려 주세요");
+  pad.setAttribute("aria-label", "여기에 서명해 주십시오");
   const hint = document.createElement("p");
   hint.className = "hint";
-  hint.textContent = "손가락이나 마우스로 그려 주세요.";
+  hint.textContent = "손가락이나 마우스로 서명해 주십시오.";
   body.append(pad, hint);
   const ctx = pad.getContext("2d");
   let scale = 1, strokes = [], current = null;
@@ -525,7 +525,7 @@ function stampInput(f, body) {
   preview.className = "stamp-preview";
   const hint = document.createElement("p");
   hint.className = "hint";
-  hint.textContent = "이름으로 만든 도장 모양이에요. 등록된 인감과는 달라요.";
+  hint.textContent = "이름으로 만든 도장 이미지이며, 등록 인감이 아닙니다.";
   body.append(input, preview, hint);
   const sync = () => { $("input-ok").disabled = !drawStamp(preview, input.value); };
   input.addEventListener("input", sync);
@@ -616,11 +616,11 @@ $("finish").addEventListener("click", async () => {
       // 입력을 잃지 않고 다시 시도할 수 있게 둔다
       button.disabled = false; button.textContent = "서명 완료";
       alert(code === "code_locked"
-        ? "이 링크가 잠겼어요. 보낸 사람에게 잠금을 풀어 달라고 한 뒤 다시 눌러 주세요. 입력은 그대로 있어요."
-        : "보내지 못했어요. 입력은 그대로 있으니 연결을 확인하고 다시 눌러 주세요.");
+        ? "링크가 잠겼습니다. 보낸 사람에게 잠금 해제를 요청한 뒤 다시 눌러 주십시오. 입력 내용은 유지됩니다."
+        : "전송하지 못했습니다. 입력 내용은 유지되니 연결을 확인하고 다시 눌러 주십시오.");
     } else if (code === "already_signed" && rosterMode) {
       // 빈 줄은 여러 사람이 동시에 고를 수 있다. 막다른 안내 대신 명단으로 돌아갈 길을 준다.
-      const box = notice("alert", "이 줄은 이미 서명됐어요", "명단을 다시 열어 확인해 주세요. 남은 빈 줄이 없으면 보낸 사람에게 알려 주세요.");
+      const box = notice("alert", "이미 서명된 줄입니다", "명단을 다시 열어 확인해 주십시오.");
       const b = document.createElement("button");
       b.type = "button"; b.className = "primary"; b.textContent = "명단 다시 열기";
       b.addEventListener("click", () => location.reload());
@@ -634,11 +634,11 @@ function showSigned(at, finalUrl, offerNext = false, rosterDone = false) {
   $("top").hidden = true;
   const when = at ? new Date(at).toLocaleString("ko-KR") : "";
   // 명단이 끝난 뒤 공유 링크를 연 사람은 서명했는지 알 수 없다. 서명을 마쳤다고 말하지 않는다.
-  const box = notice("check", rosterDone ? "완성된 명단이에요" : "서명을 마쳤어요", rosterDone
-    ? "서명 받기가 끝난 문서예요. 완성본을 내려받을 수 있어요."
+  const box = notice("check", rosterDone ? "완성된 명단입니다" : "서명이 완료되었습니다", rosterDone
+    ? "서명이 종료된 문서입니다. 완성본을 내려받을 수 있습니다."
     : finalUrl
-    ? "모든 서명이 끝났어요. 완성본을 내려받아 보관하세요."
-    : `${when}에 기록됐어요. 모든 서명이 끝나면 이 링크에서 완성본을 받을 수 있어요.`);
+    ? "모든 서명이 완료되었습니다. 완성본을 내려받아 보관해 주십시오."
+    : `${when}에 기록되었습니다. 모든 서명이 완료되면 이 링크에서 완성본을 받을 수 있습니다.`);
   if (finalUrl) {
     const b = document.createElement("button");
     b.type = "button"; b.className = "primary"; b.textContent = "완성본 내려받기";
@@ -668,13 +668,13 @@ async function downloadFinal(url, button) {
     const info = document.createElement("div");
     info.className = "download-info";
     const hint = document.createElement("p");
-    hint.textContent = "파일이 받아지지 않으면 이 링크를 Safari 나 Chrome 에서 열어 주세요.";
+    hint.textContent = "파일이 받아지지 않으면 Safari나 Chrome에서 열어 주십시오.";
     const c = document.createElement("code");
     c.textContent = `SHA-256 ${hash}`;
     info.append(hint, c);
     button.after(info);
   } catch (e) {
-    alert("내려받지 못했어요. 페이지를 다시 열어 주세요.");
+    alert("내려받지 못했습니다. 페이지를 다시 열어 주십시오.");
   } finally { button.disabled = false; }
 }
 
@@ -688,7 +688,7 @@ $("decline-ok").addEventListener("click", async () => {
     const reason = $("decline-reason").value.trim();
     const sealed = reason ? toB64(await encrypt(utf8.encode(reason), `decline:${envelopeId}:${signerId}`)) : null;
     await api({ action: "decline", reason: sealed });
-    notice("stop", "서명을 거절했어요", "보낸 사람의 앱에 표시돼요.");
+    notice("stop", "서명을 거절했습니다", "보낸 사람에게 전달됩니다.");
     $("top").hidden = true;
   } catch (e) { showProblem(e instanceof Problem ? e.code : "server_error"); }
 });
