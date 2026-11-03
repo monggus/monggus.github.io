@@ -50,6 +50,7 @@ footer > * { max-width: 700px; margin-left: auto; margin-right: auto; }
 .notice h1 { font-size: 22px; margin: 12px 0 8px; }
 .notice p { color: var(--muted); margin: 6px 0; word-break: keep-all; }
 .notice .mark { width: 46px; height: 46px; fill: none; stroke: var(--brand); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.notice .code-input { display: block; width: 100%; margin-top: 18px; text-align: center; font-size: 26px; letter-spacing: .3em; font-variant-numeric: tabular-nums; }
 .notice .mark.alert, .notice .mark.stop { stroke: #b3261e; }
 .notice button { margin-top: 18px; width: 100%; }
 .notice code { display: block; font-size: 11px; word-break: break-all; color: var(--muted); margin-top: 14px; }
@@ -68,5 +69,7 @@ input[type=text], input[type=email], input[type=date], textarea { width: 100%; f
 
 .roster { margin-top: 18px; display: flex; flex-direction: column; gap: 8px; }
 .notice .roster button { margin: 0; display: flex; justify-content: space-between; align-items: center; background: var(--surface); color: var(--text); border: 1px solid var(--line); }
+.notice .roster .blank-row { border-style: dashed; }
+.download-info p { font-size: 13px; }
 .roster .state { color: var(--brand); font-size: 14px; font-weight: 600; }
 .roster button:disabled .state { color: var(--muted); }

@@ -7,6 +7,16 @@
 <meta name="robots" content="noindex, nofollow">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; worker-src 'self' blob:; connect-src 'self' https://tajkcrgxwevbjfrhupal.supabase.co; base-uri 'none'; form-action 'none'">
 <title>서결 전자서명</title>
+<meta name="description" content="서명 요청이 도착했어요. 링크를 열어 문서를 확인해 주세요.">
+<!-- 메신저 미리보기 카드. 정적인 문구만 두어 문서 제목·이름이 새지 않게 한다. 도메인을 사면 주소를 바꿀 것 -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="서결">
+<meta property="og:title" content="서결 전자서명 · 서명 요청">
+<meta property="og:description" content="서명 요청이 도착했어요. 링크를 열어 문서를 확인해 주세요.">
+<meta property="og:image" content="https://monggus.github.io/sign/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="icon" type="image/png" href="icon-64.png">
 <link rel="apple-touch-icon" href="icon-180.png">
 <link rel="stylesheet" href="style.css">
@@ -28,7 +38,7 @@
 <footer id="bar" hidden>
   <div class="bar-row"><span id="who"></span><span id="progress"></span></div>
   <div id="consent-row" hidden>
-    <label class="consent"><input type="checkbox" id="consent"><span>문서를 읽었고, 전자적으로 서명하는 데 동의합니다. 서명 시각과 IP·브라우저 정보가 기록에 남습니다.</span></label>
+    <label class="consent"><input type="checkbox" id="consent" autocomplete="off"><span>문서를 읽었고, 전자적으로 서명하는 데 동의합니다. 서명 시각과 IP·브라우저 정보가 기록에 남습니다.</span></label>
   </div>
   <div class="bar-actions">
     <button id="decline" class="ghost" type="button">거절</button>
