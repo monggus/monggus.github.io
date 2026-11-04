@@ -19,7 +19,10 @@ const $ = (id) => document.getElementById(id);
 const utf8 = new TextEncoder();
 
 // 새 형식: #비밀(16바이트). 예전 형식: #t=토큰&k=열쇠. 이미 보낸 링크가 있어 둘 다 받는다.
-const fragment = location.hash.slice(1);
+// 명단 개인 링크: #공유비밀.사람.코드. 누르면 입력 없이 본인 줄로 간다.
+const rawFragment = location.hash.slice(1);
+const personal = /^([A-Za-z0-9_-]{22})\.([A-Za-z0-9_-]{22})\.(\d{6})$/.exec(rawFragment);
+const fragment = personal ? personal[1] : rawFragment;
 const params = new URLSearchParams(fragment);
 const legacy = params.has("t");
 const keyText = params.get("k") ?? "";
@@ -81,6 +84,7 @@ const MESSAGES = {
   expired: ["서명 기한이 지났습니다", "보낸 사람에게 다시 요청해 주십시오."],
   cancelled: ["보낸 사람이 취소한 문서입니다", "더 이상 서명할 수 없습니다."],
   declined: ["서명이 중단된 문서입니다", "서명자 중 한 명이 거절했습니다."],
+  code_required: ["담당자에게 문의해 주십시오", "이 명단은 보안코드가 있어야 서명할 수 있습니다."],
   code_locked: ["코드 입력 오류로 잠겼습니다", "보낸 사람에게 잠금 해제를 요청해 주십시오."],
   unsupported: ["이 브라우저에서는 열 수 없습니다", "운영체제나 브라우저를 업데이트한 뒤 다시 열어 주십시오."],
   removed: ["서명 대상에서 제외되었습니다", "자세한 내용은 보낸 사람에게 문의해 주십시오."],
@@ -121,6 +125,7 @@ function notice(mark, title, text) {
   $("pages").hidden = true; $("bar").hidden = true;
   const box = $("notice");
   box.hidden = false;
+  box.classList.remove("entry");
   box.replaceChildren();
   const m = iconNode(mark);
   const h = document.createElement("h1"); h.textContent = title;
@@ -150,12 +155,12 @@ async function start() {
   }
 }
 
-/** 접근 코드 입력. 틀린 횟수는 서버가 센다. */
+/** 보안코드 입력. 틀린 횟수는 서버가 센다. */
 function askCode(message) {
-  const box = notice("lock", "접근 코드를 입력해 주십시오", message ?? "보낸 사람에게 별도로 받은 6자리 코드입니다.");
+  const box = notice("lock", "보안코드를 입력해 주십시오", message ?? "보낸 사람에게 별도로 받은 6자리 코드입니다.");
   const input = document.createElement("input");
   input.type = "text"; input.inputMode = "numeric"; input.autocomplete = "off";
-  input.className = "code-input"; input.setAttribute("aria-label", "접근 코드");
+  input.className = "code-input"; input.setAttribute("aria-label", "보안코드");
   const go = document.createElement("button");
   go.type = "button"; go.className = "primary"; go.textContent = "확인"; go.disabled = true;
   input.addEventListener("input", () => { input.value = input.value.replace(/\D/g, "").slice(0, 6); go.disabled = input.value.length !== 6; });
@@ -211,60 +216,141 @@ async function openEnvelope() {
   }
 }
 
-/** 명단 공유 링크: 이름을 입력하면 본인 줄로 간다. 다른 사람의 이름과 서명 여부는 보여 주지 않는다. */
+/** 명단 공유 링크: 이름(보안코드를 건 명단은 코드까지)을 넣으면 본인 줄로 간다. 다른 사람의 이름과 서명 여부는 보여 주지 않는다. */
 function showRoster(opened) {
   rosterMode = true; isRoster = true;
   if (opened.final_url) return showSigned(null, opened.final_url, false, true);
   $("decline").hidden = true;
-  const box = notice("list", manifest.title, `${manifest.from}님의 참석 명단입니다. 이름을 입력해 서명해 주십시오.`);
-  const input = document.createElement("input");
-  input.type = "text"; input.autocomplete = "name"; input.maxLength = 40;
-  input.className = "name-input"; input.setAttribute("aria-label", "이름"); input.placeholder = "이름";
+  const coded = opened.coded === true;
+  const box = notice("list", manifest.title, coded
+    ? `${manifest.from}님의 참석 명단입니다. 이름과 보안코드를 입력해 주십시오.`
+    : `${manifest.from}님의 참석 명단입니다. 이름을 입력해 서명해 주십시오.`);
+  const brand = document.createElement("img");
+  brand.src = "./icon-180.png"; brand.alt = ""; brand.className = "brand-mark";
+  box.firstChild.replaceWith(brand);
+  box.classList.add("entry");    // 키보드가 올라와도 로고가 밀려나지 않게 위쪽 여백을 줄인다
+  const field = (label, numeric) => {
+    const input = document.createElement("input");
+    input.type = "text"; input.className = "entry-input"; input.setAttribute("aria-label", label); input.placeholder = label;
+    if (numeric) { input.inputMode = "numeric"; input.autocomplete = "one-time-code"; input.maxLength = 6; }
+    else { input.autocomplete = "name"; input.maxLength = 40; }
+    return input;
+  };
+  const nameInput = field("이름", false);
+  const codeInput = coded ? field("보안코드", true) : null;
   const go = document.createElement("button");
   go.type = "button"; go.className = "primary"; go.textContent = "확인"; go.disabled = true;
-  const info = document.createElement("p"); info.className = "hint"; info.setAttribute("role", "status");
+  const info = document.createElement("p"); info.className = "entry-info"; info.setAttribute("role", "status");
   const extra = document.createElement("div");
-  const begin = async (id, typed) => {
+  const ready = () => nameInput.value.trim().length > 0 && (!coded || codeInput.value.length === 6);
+  const refresh = () => { go.disabled = !ready(); extra.replaceChildren(); info.textContent = ""; };
+  const enter = async (fresh, id, typed) => {
     signerId = id; pendingName = typed;
     box.replaceChildren();
     const spin = document.createElement("div"); spin.className = "spinner"; box.append(spin);
     try {
-      // 서명 URL 은 한 시간 뒤 만료되니 회의 중 오래 열어 뒀어도 되도록 새로 받는다. 명단이 바뀌었을 수도 있다.
-      const fresh = await api({ action: "open" });
+      // 명단이 바뀌었을 수 있으니 방금 받은 최신 칸으로 서명한다
       manifest = JSON.parse(new TextDecoder().decode(await decrypt(fromB64(fresh.manifest), `manifest:${envelopeId}`)));
       manifestRev = fresh.rev ?? 0;
       await openDocument(fresh.doc_url);
     } catch (e) { showProblem(e instanceof Problem ? e.code : "server_error"); }
   };
   const norm = (t) => t.normalize("NFC").replace(/\s+/g, "").toLowerCase();
+  const NOT_MATCHED = coded ? "이름 또는 보안코드가 일치하지 않습니다." : "명단에서 찾을 수 없습니다. 보낸 사람에게 문의해 주십시오.";
+  /** 이름이 같은 사람이 있을 수 있어 차례로 확인한다 */
+  const tryCode = async (people) => {
+    let last = null;
+    for (const person of people) {
+      signerId = person.id;
+      proof = b64url(await derive(`proof|${person.id}|${codeInput.value}`));
+      try { return { person, fresh: await api({ action: "open" }) }; }
+      catch (e) {
+        signerId = null; proof = null;
+        if (!(e instanceof Problem) || (e.code !== "code_wrong" && e.code !== "code_locked")) throw e;
+        last = e;
+      }
+    }
+    if (last?.code === "code_locked") info.textContent = "입력 오류가 많아 잠겼습니다. 담당자에게 문의해 주십시오.";
+    else info.textContent = last?.left ? `${NOT_MATCHED} ${last.left}회 더 틀리면 잠깁니다.` : NOT_MATCHED;
+    // 틀린 코드를 지우고 바로 다시 입력하게 한다
+    codeInput.value = "";
+    codeInput.focus();
+    return null;
+  };
   const check = async () => {
-    if (go.disabled) return;
+    if (!ready()) return;
     go.disabled = true; extra.replaceChildren(); info.textContent = "";
     try {
       const fresh = await api({ action: "open" });
       const latest = JSON.parse(new TextDecoder().decode(await decrypt(fromB64(fresh.manifest), `manifest:${envelopeId}`)));
       const status = new Map(fresh.signers.map((p) => [p.id, p.status]));
-      const typed = input.value.trim();
+      const typed = nameInput.value.trim();
       const same = latest.signers.filter((p) => !p.blank && status.has(p.id) && norm(p.name) === norm(typed));
+      if (coded) {
+        // 코드가 맞기 전에는 그 이름이 있는지, 서명했는지 알려 주지 않는다
+        if (!same.length) { info.textContent = NOT_MATCHED; return; }
+        const free = same.filter((p) => status.get(p.id) !== "signed");
+        const done = same.filter((p) => status.get(p.id) === "signed");
+        const passed = await tryCode([...free, ...done]);
+        if (!passed) return;
+        if (status.get(passed.person.id) === "signed") {
+          signerId = null; proof = null;
+          info.textContent = "이미 서명하셨습니다.";
+          return;
+        }
+        return await enter(passed.fresh, passed.person.id, null);
+      }
       const free = same.find((p) => status.get(p.id) !== "signed");
-      if (free) return await begin(free.id, null);
+      if (free) { signerId = free.id; return await enter(fresh, free.id, null); }
       if (same.length) { info.textContent = "이미 서명된 이름입니다."; return; }
       // 같은 QR 을 여러 명이 동시에 열어도 부딪히지 않게 남은 빈 줄 중 하나를 무작위로 고른다
       const blanks = latest.signers.filter((p) => p.blank && status.has(p.id) && status.get(p.id) !== "signed");
-      if (!blanks.length) { info.textContent = "명단에서 찾을 수 없습니다. 보낸 사람에게 문의해 주십시오."; return; }
+      if (!blanks.length) { info.textContent = NOT_MATCHED; return; }
       info.textContent = "명단에 없는 이름입니다. 이 이름으로 서명하시겠습니까?";
       const yes = document.createElement("button");
       yes.type = "button"; yes.className = "ghost"; yes.textContent = "이 이름으로 서명";
-      yes.addEventListener("click", () => begin(blanks[Math.floor(Math.random() * blanks.length)].id, typed));
+      yes.addEventListener("click", () => enter(fresh, blanks[Math.floor(Math.random() * blanks.length)].id, typed));
       extra.append(yes);
     } catch (e) { showProblem(e instanceof Problem ? e.code : "server_error"); }
-    finally { go.disabled = input.value.trim().length === 0; }
+    finally { go.disabled = !ready(); }
   };
-  input.addEventListener("input", () => { go.disabled = input.value.trim().length === 0; extra.replaceChildren(); info.textContent = ""; });
-  input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) check(); });
+  nameInput.addEventListener("input", refresh);
+  codeInput?.addEventListener("input", () => { codeInput.value = codeInput.value.replace(/\D/g, "").slice(0, 6); refresh(); });
+  for (const input of [nameInput, codeInput]) input?.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) check(); });
   go.addEventListener("click", check);
-  box.append(input, go, info, extra);
-  input.focus();
+  box.append(nameInput);
+  if (codeInput) box.append(codeInput);
+  box.append(go, info, extra);
+  nameInput.focus();
+  if (personal && coded) openPersonal();
+
+  /** 문자로 받은 링크. 잘못됐으면 입력 화면을 그대로 두고 안내한다. */
+  async function openPersonal() {
+    const hex = [...fromB64(personal[2])].map((b) => b.toString(16).padStart(2, "0")).join("");
+    const id = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    box.hidden = true;
+    try {
+      signerId = id;
+      proof = b64url(await derive(`proof|${id}|${personal[3]}`));
+      const fresh = await api({ action: "open" });
+      const mine = fresh.signers.find((p) => p.id === id);
+      if (mine?.status === "signed") {
+        signerId = null; proof = null;
+        box.hidden = false;
+        notice("check", "이미 서명하셨습니다", "감사합니다. 더 하실 일은 없습니다.");
+        return;
+      }
+      box.hidden = false;
+      await enter(fresh, id, null);
+    } catch (e) {
+      signerId = null; proof = null;
+      box.hidden = false;
+      if (e instanceof Problem && !["code_wrong", "code_locked", "not_found"].includes(e.code)) return showProblem(e.code);
+      info.textContent = e instanceof Problem && e.code === "code_locked"
+        ? "입력 오류가 많아 잠겼습니다. 담당자에게 문의해 주십시오."
+        : "링크가 변경되었습니다. 이름과 보안코드를 입력해 주십시오.";
+    }
+  }
 }
 
 async function fetchBytes(url) {
@@ -336,23 +422,41 @@ async function layoutPages(doc) {
       canvas.height = Math.round(viewport.height);
       await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
     };
-    // 명단은 다른 사람의 줄을 가린다. 표에 인쇄된 이름이 있어도 본인 줄만 보인다.
-    if (isRoster) {
-      const own = mine.filter((m) => m.spec.page === n - 1).map((m) => m.spec);
-      for (const f of manifest.fields) {
-        if (f.page !== n - 1 || f.signer === signerId || f.kind !== "signature") continue;
-        if (own.some((m) => f.y < m.y + m.h && m.y < f.y + f.h)) continue;
-        const mask = document.createElement("div");
-        mask.className = "row-mask";
-        mask.style.top = `${f.y * 100}%`;
-        mask.style.height = `${f.h * 100}%`;
-        box.append(mask);
-      }
-    }
+    // 명단은 다른 사람의 줄을 가린다. 줄마다 띠를 두르면 어수선하니 이어진 줄을 흰 여백 하나로 합친다.
+    if (isRoster) for (const block of hiddenBlocks(n - 1)) box.append(block);
     for (const f of mine.filter((m) => m.spec.page === n - 1)) box.append(makeField(f));
     host.append(box);
     painter.observe(box);
   }
+}
+
+/** 이 쪽에서 가릴 영역. 본인 줄을 사이에 두고 위아래로 나뉜다. */
+function hiddenBlocks(page) {
+  const own = mine.filter((m) => m.spec.page === page).map((m) => m.spec);
+  const crosses = (top, bottom) => own.some((m) => top < m.y + m.h && m.y < bottom);
+  const rows = manifest.fields
+    .filter((f) => f.page === page && f.signer !== signerId && f.kind === "signature" && !crosses(f.y, f.y + f.h))
+    .sort((a, b) => a.y - b.y);
+  const spans = [];
+  for (const f of rows) {
+    const last = spans[spans.length - 1];
+    // 줄 사이 선까지 덮어 한 덩어리로 잇되, 사이에 본인 줄이 있으면 끊는다
+    if (last && !crosses(last.bottom, f.y)) last.bottom = Math.max(last.bottom, f.y + f.h);
+    else spans.push({ top: f.y, bottom: f.y + f.h });
+  }
+  // 선의 끊긴 조각이 남지 않게 살짝 넓힌다. 맨 아래 덩어리는 표의 마지막 선까지 덮는다.
+  const lowest = rows.length ? Math.max(...rows.map((f) => f.y + f.h)) : 0;
+  const ownBelow = (y) => own.some((m) => m.y >= y);
+  return spans.map((span) => {
+    const top = span.top - 0.0014;
+    const bottom = span.bottom + (span.bottom >= lowest && !ownBelow(span.bottom) ? 0.0045 : 0.0014);
+    const block = document.createElement("div");
+    block.className = "row-mask";
+    block.style.top = `${top * 100}%`;
+    block.style.height = `${(bottom - top) * 100}%`;
+    if (bottom - top > 0.06) block.textContent = "다른 참석자 정보는 표시되지 않습니다";
+    return block;
+  });
 }
 
 function makeField(f) {
