@@ -27,6 +27,8 @@ let token = params.get("t") ?? "";
 let linkSecret = null, accessCode = "", proof = null;
 
 let cryptoKey, envelopeId, signerId, manifest, docHash, manifestRev = 0, rosterMode = false;
+let isRoster = false;       // 명단 문서: 공유 링크든 개인 링크든 다른 사람의 줄을 보여 주지 않는다
+let pendingName = null;     // 빈 줄에 쓸 이름. 명단에 없는 분이 입력한 이름
 let mine = [];              // 내 칸. {spec, text, image(base64), el}
 const state = { focus: null };
 
@@ -84,7 +86,7 @@ const MESSAGES = {
   removed: ["서명 대상에서 제외되었습니다", "자세한 내용은 보낸 사람에게 문의해 주십시오."],
   changed: ["문서 설정이 변경되었습니다", "이 링크를 다시 열어 서명해 주십시오."],
   already_signed: ["이미 서명했습니다", "같은 링크로 다시 서명할 수 없습니다."],
-  completed: ["이미 완성된 문서입니다", "더 이상 서명을 받지 않습니다."],
+  completed: ["서명이 종료된 문서입니다", "더 이상 서명을 받지 않습니다."],
   waiting: ["앞 순서 서명을 기다리고 있습니다", "앞 서명자가 완료한 뒤 다시 열어 주십시오."],
   network: ["연결할 수 없습니다", "인터넷 연결을 확인한 뒤 다시 열어 주십시오."],
   tampered: ["문서를 신뢰할 수 없습니다", "보낸 문서와 다릅니다. 서명하지 말고 보낸 사람에게 알려 주십시오."],
@@ -186,7 +188,7 @@ async function openEnvelope() {
   try {
     if (opened.state === "waiting") return showProblem("waiting");
     envelopeId = opened.envelope_id; signerId = opened.signer_id; manifestRev = opened.rev ?? 0;
-    if (opened.can_decline === false) $("decline").hidden = true;
+    if (opened.can_decline === false) { $("decline").hidden = true; isRoster = true; }
     if (!legacy) {
       // 서버가 내준 감싼 열쇠를 링크 비밀로 푼다. 서버는 이 열쇠를 만들 수 없다.
       const wrap = await crypto.subtle.importKey("raw", await derive(`wrap|${accessCode}`), "AES-GCM", false, ["decrypt"]);
@@ -209,55 +211,60 @@ async function openEnvelope() {
   }
 }
 
-/** 명단 공유 링크: 자기 이름을 골라 서명한다 */
+/** 명단 공유 링크: 이름을 입력하면 본인 줄로 간다. 다른 사람의 이름과 서명 여부는 보여 주지 않는다. */
 function showRoster(opened) {
-  rosterMode = true;
+  rosterMode = true; isRoster = true;
   if (opened.final_url) return showSigned(null, opened.final_url, false, true);
-  const box = notice("list", manifest.title, `${manifest.from}님이 보낸 명단입니다. 이름을 선택해 서명해 주십시오.`);
-  const status = new Map(opened.signers.map((s) => [s.id, s.status]));
-  const list = document.createElement("div");
-  list.className = "roster";
-  const pick = async (id) => {
-    signerId = id;
+  $("decline").hidden = true;
+  const box = notice("list", manifest.title, `${manifest.from}님의 참석 명단입니다. 이름을 입력해 서명해 주십시오.`);
+  const input = document.createElement("input");
+  input.type = "text"; input.autocomplete = "name"; input.maxLength = 40;
+  input.className = "name-input"; input.setAttribute("aria-label", "이름"); input.placeholder = "이름";
+  const go = document.createElement("button");
+  go.type = "button"; go.className = "primary"; go.textContent = "확인"; go.disabled = true;
+  const info = document.createElement("p"); info.className = "hint"; info.setAttribute("role", "status");
+  const extra = document.createElement("div");
+  const begin = async (id, typed) => {
+    signerId = id; pendingName = typed;
     box.replaceChildren();
     const spin = document.createElement("div"); spin.className = "spinner"; box.append(spin);
     try {
-      // 서명 URL 은 한 시간 뒤 만료되니 회의 중 오래 열어 뒀어도 되도록 고를 때 새로 받는다
+      // 서명 URL 은 한 시간 뒤 만료되니 회의 중 오래 열어 뒀어도 되도록 새로 받는다. 명단이 바뀌었을 수도 있다.
       const fresh = await api({ action: "open" });
-      // 열어 둔 사이 명단이 바뀌었을 수 있으니 최신 칸으로 서명한다
       manifest = JSON.parse(new TextDecoder().decode(await decrypt(fromB64(fresh.manifest), `manifest:${envelopeId}`)));
       manifestRev = fresh.rev ?? 0;
-      $("decline").hidden = true;
       await openDocument(fresh.doc_url);
     } catch (e) { showProblem(e instanceof Problem ? e.code : "server_error"); }
   };
-  // 양식의 빈 줄: 이름이 없는 사람은 빈 줄 하나를 차지해 직접 적는다
-  // 같은 QR 을 여러 명이 동시에 열어도 부딪히지 않게 남은 줄 중 하나를 무작위로 고른다
-  const blanks = manifest.signers.filter((p) => p.blank && status.has(p.id) && status.get(p.id) !== "signed");
-  const blank = blanks[Math.floor(Math.random() * blanks.length)];
-  for (const person of manifest.signers) {
-    if (!status.has(person.id) || person.blank) continue;
-    const b = document.createElement("button");
-    b.type = "button";
-    const name = document.createElement("span"); name.textContent = person.name;
-    const state = document.createElement("span"); state.className = "state";
-    const done = status.get(person.id) === "signed";
-    state.textContent = done ? "서명함" : "서명하기";
-    b.append(name, state);
-    b.disabled = done;
-    b.addEventListener("click", () => pick(person.id));
-    list.append(b);
-  }
-  if (blank) {
-    const b = document.createElement("button");
-    b.type = "button"; b.className = "blank-row";
-    const name = document.createElement("span"); name.textContent = "명단에 이름이 없는 경우";
-    const state = document.createElement("span"); state.className = "state"; state.textContent = "이름 쓰고 서명";
-    b.append(name, state);
-    b.addEventListener("click", () => pick(blank.id));
-    list.append(b);
-  }
-  box.append(list);
+  const norm = (t) => t.normalize("NFC").replace(/\s+/g, "").toLowerCase();
+  const check = async () => {
+    if (go.disabled) return;
+    go.disabled = true; extra.replaceChildren(); info.textContent = "";
+    try {
+      const fresh = await api({ action: "open" });
+      const latest = JSON.parse(new TextDecoder().decode(await decrypt(fromB64(fresh.manifest), `manifest:${envelopeId}`)));
+      const status = new Map(fresh.signers.map((p) => [p.id, p.status]));
+      const typed = input.value.trim();
+      const same = latest.signers.filter((p) => !p.blank && status.has(p.id) && norm(p.name) === norm(typed));
+      const free = same.find((p) => status.get(p.id) !== "signed");
+      if (free) return await begin(free.id, null);
+      if (same.length) { info.textContent = "이미 서명된 이름입니다."; return; }
+      // 같은 QR 을 여러 명이 동시에 열어도 부딪히지 않게 남은 빈 줄 중 하나를 무작위로 고른다
+      const blanks = latest.signers.filter((p) => p.blank && status.has(p.id) && status.get(p.id) !== "signed");
+      if (!blanks.length) { info.textContent = "명단에서 찾을 수 없습니다. 보낸 사람에게 문의해 주십시오."; return; }
+      info.textContent = "명단에 없는 이름입니다. 이 이름으로 서명하시겠습니까?";
+      const yes = document.createElement("button");
+      yes.type = "button"; yes.className = "ghost"; yes.textContent = "이 이름으로 서명";
+      yes.addEventListener("click", () => begin(blanks[Math.floor(Math.random() * blanks.length)].id, typed));
+      extra.append(yes);
+    } catch (e) { showProblem(e instanceof Problem ? e.code : "server_error"); }
+    finally { go.disabled = input.value.trim().length === 0; }
+  };
+  input.addEventListener("input", () => { go.disabled = input.value.trim().length === 0; extra.replaceChildren(); info.textContent = ""; });
+  input.addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.isComposing) check(); });
+  go.addEventListener("click", check);
+  box.append(input, go, info, extra);
+  input.focus();
 }
 
 async function fetchBytes(url) {
@@ -279,13 +286,13 @@ async function openDocument(url) {
     spec,
     image: null,
     // 빈 줄은 이름을 직접 적는다
-    text: spec.kind === "name" ? (me?.blank ? null : me?.name) : spec.kind === "email" ? (me?.email || null) : spec.kind === "date" ? todayText : null,
+    text: spec.kind === "name" ? (me?.blank ? pendingName : me?.name) : spec.kind === "email" ? (me?.email || null) : spec.kind === "date" ? todayText : null,
     el: null,
   }));
 
   $("title").textContent = manifest.title;
   $("from").textContent = `${manifest.from}님의 서명 요청`;
-  $("who").textContent = me?.blank ? "이름을 입력해 주십시오" : (me?.name ?? "");
+  $("who").textContent = me?.blank ? (pendingName ?? "이름을 입력해 주십시오") : (me?.name ?? "");
   $("consent").checked = false;
   $("top").hidden = false;
   $("notice").hidden = true;
@@ -329,6 +336,19 @@ async function layoutPages(doc) {
       canvas.height = Math.round(viewport.height);
       await page.render({ canvasContext: canvas.getContext("2d"), viewport }).promise;
     };
+    // 명단은 다른 사람의 줄을 가린다. 표에 인쇄된 이름이 있어도 본인 줄만 보인다.
+    if (isRoster) {
+      const own = mine.filter((m) => m.spec.page === n - 1).map((m) => m.spec);
+      for (const f of manifest.fields) {
+        if (f.page !== n - 1 || f.signer === signerId || f.kind !== "signature") continue;
+        if (own.some((m) => f.y < m.y + m.h && m.y < f.y + f.h)) continue;
+        const mask = document.createElement("div");
+        mask.className = "row-mask";
+        mask.style.top = `${f.y * 100}%`;
+        mask.style.height = `${f.h * 100}%`;
+        box.append(mask);
+      }
+    }
     for (const f of mine.filter((m) => m.spec.page === n - 1)) box.append(makeField(f));
     host.append(box);
     painter.observe(box);
@@ -520,7 +540,7 @@ function drawStamp(canvas, name) {
 function stampInput(f, body) {
   const me = manifest.signers.find((s) => s.id === signerId);
   const input = document.createElement("input");
-  input.type = "text"; input.maxLength = 8; input.value = me?.name ?? ""; input.placeholder = "도장에 새길 이름";
+  input.type = "text"; input.maxLength = 8; input.value = pendingName ?? me?.name ?? ""; input.placeholder = "도장에 새길 이름";
   const preview = document.createElement("canvas");
   preview.className = "stamp-preview";
   const hint = document.createElement("p");
@@ -638,6 +658,8 @@ function showSigned(at, finalUrl, offerNext = false, rosterDone = false) {
     ? "서명이 종료된 문서입니다. 완성본을 내려받을 수 있습니다."
     : finalUrl
     ? "모든 서명이 완료되었습니다. 완성본을 내려받아 보관해 주십시오."
+    : isRoster
+    ? `${when}에 기록되었습니다.`
     : `${when}에 기록되었습니다. 모든 서명이 완료되면 이 링크에서 완성본을 받을 수 있습니다.`);
   if (finalUrl) {
     const b = document.createElement("button");

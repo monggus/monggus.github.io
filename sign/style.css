@@ -73,3 +73,8 @@ input[type=text], input[type=email], input[type=date], textarea { width: 100%; f
 .download-info p { font-size: 13px; }
 .roster .state { color: var(--brand); font-size: 14px; font-weight: 600; }
 .roster button:disabled .state { color: var(--muted); }
+
+/* 명단: 이름 입력과 다른 사람의 줄 가리기 */
+.name-input { display: block; width: 100%; max-width: 280px; margin: 14px auto 10px; padding: 12px; font-size: 17px; text-align: center; border: 1px solid #c8ccd2; border-radius: 10px; }
+.notice .hint[role="status"]:empty { display: none; }
+.row-mask { position: absolute; left: 0; width: 100%; background: #e9ebef; pointer-events: none; }
